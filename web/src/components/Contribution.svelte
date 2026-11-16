@@ -17,7 +17,7 @@
     ProgressTrack,
     ProgressIndicator,
   } from "@ui-sdk/svelte/progress";
-  import type { ModelSpec } from "../config";
+  import { layerLabel, teamLayers, type ModelSpec } from "../config";
   import type { RuntimeProgress } from "../runtime/types";
   import Icon from "./Icon.svelte";
   interface Props {
@@ -54,6 +54,7 @@
     onpause,
     oncopy,
   }: Props = $props();
+  const team = $derived(teamLayers(model));
   let open = $state(false),
     selectedMode = $state<string | null>("whole"),
     copied = $state(false);
@@ -194,11 +195,11 @@
           <span
             ><Icon name="device" /><strong
               >{mode === "helper" ? "Paired device" : "This device"}</strong
-            ><small>Layers 0–14</small></span
+            ><small>{layerLabel(0, team.split)}</small></span
           ><span class="team-connection">↔<small>iroh</small></span><span
             ><Icon name="device" /><strong
               >{mode === "helper" ? "This device" : "Paired device"}</strong
-            ><small>Layers 15–29</small></span
+            ><small>{layerLabel(team.split, team.layers)}</small></span
           >
         </div>{/if}
       {#if invite && progress.phase !== "error"}

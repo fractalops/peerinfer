@@ -9,9 +9,9 @@ const mocks = vi.hoisted(() => ({
   start: vi.fn(),
   close: vi.fn(),
   gpu: vi.fn(),
-  workerModel: "SmolLM2-135M-Instruct-ONNX-Q4",
+  workerModel: "SmolLM2-135M-Instruct-q4f16_1-MLC",
 }));
-const modelId = "SmolLM2-135M-Instruct-ONNX-Q4";
+const modelId = "SmolLM2-135M-Instruct-q4f16_1-MLC";
 vi.mock("./mesh-session", () => ({
   MeshSession: {
     connect: async (changed: (peers: unknown[], count: number) => void) => {
@@ -74,7 +74,6 @@ beforeEach(() => {
   history.replaceState(null, "", "/");
   mocks.gpu.mockResolvedValue({
     name: "Test GPU",
-    onnxProblem: null,
     webllmProblem: null,
     coreProblem: null,
   });

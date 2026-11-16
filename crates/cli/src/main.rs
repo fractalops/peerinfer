@@ -1,7 +1,10 @@
 mod ask;
 mod bootstrap;
+mod join;
+mod model;
 mod net;
 mod peers;
+mod worker;
 
 use std::{path::PathBuf, process::ExitCode};
 
@@ -9,7 +12,10 @@ use clap::{Args, Parser, Subcommand};
 use peerinfer_net::EndpointId;
 
 #[derive(Debug, Parser)]
-#[command(version, about = "Send prompts to browser tabs that run WebLLM.")]
+#[command(
+    version,
+    about = "Run language models on a pool of devices connected over iroh."
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -23,6 +29,11 @@ enum Command {
     Peers(peers::PeersArgs),
     /// Run an always-on node that new members use to join the pool.
     Bootstrap(bootstrap::BootstrapArgs),
+    /// Answer pool requests with a model on this machine's GPU, alone or as
+    /// the host of a team of devices.
+    Worker(worker::WorkerArgs),
+    /// Run part of a team's model on this machine's GPU.
+    Join(join::JoinArgs),
 }
 
 /// Options for commands that join the pool.
@@ -55,6 +66,8 @@ async fn main() -> ExitCode {
         Command::Ask(args) => ask::run(args).await,
         Command::Peers(args) => peers::run(args).await,
         Command::Bootstrap(args) => bootstrap::run(args).await,
+        Command::Worker(args) => worker::run(args).await,
+        Command::Join(args) => join::run(args).await,
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

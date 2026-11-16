@@ -92,3 +92,20 @@ export async function cacheModelWeights(
     loaded += received;
   }
 }
+
+/** Reads one model file from the cache, or downloads and caches it. */
+export async function readModelFile(
+  base: string,
+  name: string,
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  const url = new URL(name, base).href;
+  const cache = await caches.open(MODEL_CACHE);
+  const cached = await cache.match(url);
+  if (cached) return new Uint8Array(await cached.arrayBuffer());
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  await cache.put(url, new Response(bytes));
+  return bytes;
+}

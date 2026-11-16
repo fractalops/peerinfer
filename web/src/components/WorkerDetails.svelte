@@ -10,7 +10,7 @@
   } from "@ui-sdk/svelte/dialog";
   import type { Member } from "../types";
   import { shortId } from "../types";
-  import { MODELS, SMOL_ID } from "../config";
+  import { MODELS, layerLabel, teamLayers } from "../config";
   import {
     count,
     executionMode,
@@ -87,8 +87,8 @@
           <dt>Model runtime</dt>
           <dd>
             {model
-              ? model.runtime === "onnx"
-                ? "ONNX Runtime · WebGPU"
+              ? model.runtime === "core"
+                ? "peerinfer-core · WebGPU"
                 : "WebLLM · WebGPU"
               : "Unknown"}
           </dd>
@@ -137,7 +137,7 @@
             One coordinator accepts the request. Two stages run the model in
             sequence.
           </p>
-          {#if member.info.model === SMOL_ID}
+          {#if model?.shared}
             <ol
               class="execution-chain"
               aria-label="Reported two-device configuration"
@@ -145,7 +145,9 @@
               <li>
                 <span class="stage-number">01</span>
                 <div>
-                  <strong>Coordinator</strong><span>Layers 0–14</span><code
+                  <strong>Coordinator</strong><span
+                    >{layerLabel(0, teamLayers(model).split)}</span
+                  ><code
                     >{shortId(member.id)}</code
                   >
                 </div>
@@ -153,7 +155,12 @@
               <li>
                 <span class="stage-number">02</span>
                 <div>
-                  <strong>Invited stage</strong><span>Layers 15–29</span><small
+                  <strong>Invited stage</strong><span
+                    >{layerLabel(
+                      teamLayers(model).split,
+                      teamLayers(model).layers,
+                    )}</span
+                  ><small
                     >Peer ID not advertised</small
                   >
                 </div>

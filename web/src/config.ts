@@ -1,32 +1,46 @@
 export const POOL_NAME = "peerinfer/pool/v1";
-export const SMOL_ID = "SmolLM2-135M-Instruct-ONNX-Q4";
+export const SMOL_ID = "SmolLM2-135M-Instruct-q4f16_1-MLC";
 export interface ModelSpec {
   id: string;
   name: string;
   description: string;
   downloadMB: number;
-  runtime: "onnx" | "webllm" | "core";
+  runtime: "webllm" | "core";
   /** MLC q4f16_1 weights for the core runtime. */
   source?: string;
+  /** Can run as a two-device team. */
   shared: boolean;
+  /** Transformer layers, for models that can run as a team. */
+  layers?: number;
 }
+/** Layer ranges of a two-device team: the host runs 0..split, the invited device split..layers. */
+export function teamLayers(model: ModelSpec): { split: number; layers: number } {
+  const layers = model.layers ?? 0;
+  return { split: Math.floor(layers / 2), layers };
+}
+/** "Layers a–b" for a range start..end. */
+export const layerLabel = (start: number, end: number) =>
+  `Layers ${start}–${end - 1}`;
 export const MODELS: ModelSpec[] = [
   {
     id: SMOL_ID,
     name: "SmolLM2 · 135M",
     description: "For short prompts and shared-compute experiments.",
-    downloadMB: 182,
-    runtime: "onnx",
+    downloadMB: 76,
+    runtime: "core",
+    source: "https://huggingface.co/mlc-ai/SmolLM2-135M-Instruct-q4f16_1-MLC/resolve/main/",
     shared: true,
+    layers: 30,
   },
   {
     id: "SmolLM2-360M-Instruct-q4f16_1-MLC",
     name: "SmolLM2 · 360M",
-    description: "A small chat model. Runs on one browser GPU.",
+    description: "A small chat model. Runs on one browser GPU or on two.",
     downloadMB: 210,
     runtime: "core",
     source: "https://huggingface.co/mlc-ai/SmolLM2-360M-Instruct-q4f16_1-MLC/resolve/main/",
-    shared: false,
+    shared: true,
+    layers: 32,
   },
   {
     id: "Qwen3-4B-q4f16_1-MLC",

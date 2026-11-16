@@ -4,11 +4,13 @@
 //! - [`worker`]: accepts completion requests and queues them for a model.
 //! - [`client`]: sends a request and reads the streamed reply.
 //! - [`presence`] and [`pool`]: signed worker announcements over gossip.
+//! - [`team`]: one model run by several devices, each with a range of layers.
 
 pub mod client;
 pub mod pool;
 pub mod presence;
 pub mod proto;
+pub mod team;
 pub mod worker;
 
 pub use iroh::{Endpoint, EndpointId, SecretKey};

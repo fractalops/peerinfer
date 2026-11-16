@@ -20,34 +20,8 @@ export default defineConfig({
     svelte(),
     browserNetworkPlugin(),
     {
-      name: "local-model-fixture",
+      name: "local-mlc-fixture",
       configureServer(server) {
-        server.middlewares.use("/model-fixture/", (req, res, next) => {
-          const path = (req.url ?? "").split("?")[0].replace(/^\//, "");
-          if (
-            ![
-              "onnx/model_q4.onnx",
-              "config.json",
-              "tokenizer.json",
-              "tokenizer_config.json",
-            ].includes(path)
-          )
-            return next();
-          const file = fileURLToPath(
-            new URL(
-              `../fixtures/smollm2-135m/${path}`,
-              import.meta.url,
-            ),
-          );
-          try {
-            res.setHeader("Content-Length", statSync(file).size);
-            res.setHeader("Content-Type", "application/octet-stream");
-            createReadStream(file).pipe(res);
-          } catch {
-            res.statusCode = 404;
-            res.end("Run scripts/test-model-fixture.sh first.");
-          }
-        });
         // MLC weights in fixtures/<model>/, served like Hugging Face's
         // resolve/main/ paths for ?weights= in development.
         server.middlewares.use("/mlc-fixture/", (req, res, next) => {

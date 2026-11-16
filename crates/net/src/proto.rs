@@ -92,14 +92,23 @@ pub enum FrameError {
     Decode(#[from] postcard::Error),
 }
 
-/// Writes one frame.
+/// Writes one frame of at most [`MAX_FRAME`] bytes.
 pub async fn write_frame<W, T>(w: &mut W, value: &T) -> Result<(), FrameError>
 where
     W: AsyncWrite + Unpin,
     T: Serialize,
 {
+    write_frame_max(w, value, MAX_FRAME).await
+}
+
+/// Writes one frame of at most `max` bytes.
+pub async fn write_frame_max<W, T>(w: &mut W, value: &T, max: usize) -> Result<(), FrameError>
+where
+    W: AsyncWrite + Unpin,
+    T: Serialize,
+{
     let body = postcard::to_stdvec(value)?;
-    if body.len() > MAX_FRAME {
+    if body.len() > max {
         return Err(FrameError::TooLarge(body.len()));
     }
     w.write_all(&(body.len() as u32).to_be_bytes()).await?;
@@ -107,8 +116,18 @@ where
     Ok(())
 }
 
-/// Reads one frame. Returns `None` when the stream ends before a new frame.
+/// Reads one frame of at most [`MAX_FRAME`] bytes. Returns `None` when the
+/// stream ends before a new frame.
 pub async fn read_frame<R, T>(r: &mut R) -> Result<Option<T>, FrameError>
+where
+    R: AsyncRead + Unpin,
+    T: DeserializeOwned,
+{
+    read_frame_max(r, MAX_FRAME).await
+}
+
+/// Reads one frame of at most `max` bytes.
+pub async fn read_frame_max<R, T>(r: &mut R, max: usize) -> Result<Option<T>, FrameError>
 where
     R: AsyncRead + Unpin,
     T: DeserializeOwned,
@@ -120,7 +139,7 @@ where
         Err(e) => return Err(e.into()),
     }
     let len = u32::from_be_bytes(len) as usize;
-    if len > MAX_FRAME {
+    if len > max {
         return Err(FrameError::TooLarge(len));
     }
     // Grow with the received bytes. A length prefix alone must not reserve

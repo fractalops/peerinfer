@@ -4,7 +4,7 @@ import { MODELS } from "./config";
 import type { MeshNode, Job } from "./wasm/peerinfer_web.js";
 
 const runtime = vi.hoisted(() => ({ generate: vi.fn(), dispose: vi.fn() }));
-vi.mock("./runtime/onnx", () => ({ createOnnx: async () => runtime }));
+vi.mock("./runtime/core", () => ({ createCore: async () => runtime }));
 vi.mock("./runtime/split", () => ({
   createSplit: vi.fn(),
   joinSplit: vi.fn(),

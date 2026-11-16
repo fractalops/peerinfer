@@ -10,7 +10,7 @@ test("iroh bindings normalize relay URLs without replacing browser globals", asy
   assert.match(source, /new Request\(/);
   const plugin = browserNetworkPlugin();
   assert.ok(plugin.transform(source, "/project/web/src/wasm/peerinfer_web.js").code.includes("const WebSocket = class"));
-  assert.equal(plugin.transform(source, "/project/web/src/runtime/model-worker.js"), undefined);
+  assert.equal(plugin.transform(source, "/project/web/src/runtime/core-worker.ts"), undefined);
   assert.throws(() => scopeBrowserNetwork("changed upstream bindings"), /bindings changed/);
   const nativeSocket = globalThis.WebSocket;
   const nativeRequest = globalThis.Request;

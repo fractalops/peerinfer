@@ -1,27 +1,23 @@
+import type { Tokenizer } from "@huggingface/tokenizers";
 import { StagePeer } from "../wasm/peerinfer_web.js";
-import { SMOL_ID, testRelay } from "../config";
-import {
-  assembleStage,
-  planStage,
-  publishModel,
-  validateManifest,
-} from "./partition.js";
-import { loadSource } from "./assets";
-import { loadTokenizer } from "./onnx";
-import { GpuSession } from "./gpu";
+import { MODELS, testRelay, type ModelSpec } from "../config";
+import { readModelFile } from "../model-cache";
 import { ModelStore } from "./store";
-import { generateText, prepareGeneration, selectToken } from "./generation";
+import { generateText, prepareGeneration } from "./generation";
 import { pack, unpack } from "./packet.js";
 import { StageState } from "./stage-state";
-import type {
-  Chunk,
-  Manifest,
-  PeerAddress,
-  Runtime,
-  RuntimeOptions,
-} from "./types";
+import { EngineWorker, downloadModel, loadTokenizer } from "./core";
+import type { Chunk, PeerAddress, Runtime, RuntimeOptions } from "./types";
+
+/** Model files travel as hash-verified chunks of at most this size. */
+const CHUNK_BYTES = 1 << 20;
+/** The configuration files a stage needs besides weight shards. */
+const CONFIG_FILES = ["mlc-chat-config.json", "tensor-cache.json"];
+
 export interface Invitation {
-  version: 1;
+  version: 2;
+  /** The model the team runs; the manifest must name the same model. */
+  model: string;
   address: PeerAddress;
   manifest: Chunk;
   secret: string;
@@ -29,7 +25,19 @@ export interface Invitation {
 export interface SharedRuntime extends Runtime {
   invite?: Invitation;
 }
+
+/** What the host offers: the model, the split point and its files. */
+interface Manifest {
+  version: 2;
+  model: string;
+  layers: number;
+  split: number;
+  files: Array<{ name: string; bytes: number; chunks: Chunk[] }>;
+}
+
 const encode = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
+const decode = (b: Uint8Array) => new TextDecoder().decode(b);
+
 export function invitationUrl(invite: Invitation): string {
   const url = new URL(location.href);
   url.hash = `join=${btoa(JSON.stringify(invite))}`;
@@ -40,7 +48,10 @@ export function readInvitation(hash: string): Invitation | undefined {
   if (hash.length > 6000) throw new Error("This invitation is too large.");
   const invite = JSON.parse(atob(hash.slice(6)));
   if (
-    invite.version !== 1 ||
+    invite.version !== 2 ||
+    !MODELS.some(
+      (m) => m.id === invite.model && m.shared && m.runtime === "core",
+    ) ||
     !/^[0-9a-f]{64}$/.test(invite.address?.id) ||
     !Array.isArray(invite.address?.addrs) ||
     invite.address.addrs.length > 8 ||
@@ -53,6 +64,50 @@ export function readInvitation(hash: string): Invitation | undefined {
     throw new Error("This invitation is not supported. Ask for a new link.");
   return invite;
 }
+
+/** Rejects manifests for unknown models, odd file names or odd sizes. */
+export function validateManifest(m: Manifest): ModelSpec {
+  const model = MODELS.find((x) => x.id === m?.model);
+  if (
+    m?.version !== 2 ||
+    !model ||
+    !model.shared ||
+    model.runtime !== "core" ||
+    !Number.isInteger(m.layers) ||
+    !Number.isInteger(m.split) ||
+    m.split < 1 ||
+    m.split >= m.layers ||
+    m.layers > 256 ||
+    !Array.isArray(m.files) ||
+    m.files.length > 64 ||
+    !CONFIG_FILES.every((n) => m.files.some((f) => f.name === n))
+  )
+    throw new Error("This invitation offers an unsupported model.");
+  let total = 0;
+  for (const f of m.files) {
+    const sum = Array.isArray(f.chunks)
+      ? f.chunks.reduce((n, c) => n + c.bytes, 0)
+      : -1;
+    if (
+      typeof f.name !== "string" ||
+      !/^[\w.-]{1,64}$/.test(f.name) ||
+      !Number.isSafeInteger(f.bytes) ||
+      sum !== f.bytes ||
+      f.chunks.some(
+        (c) =>
+          !/^[0-9a-f]{64}$/.test(c.hash) ||
+          !Number.isInteger(c.bytes) ||
+          c.bytes < 1 ||
+          c.bytes > CHUNK_BYTES,
+      )
+    )
+      throw new Error("This invitation has an invalid model manifest.");
+    total += f.bytes;
+  }
+  if (total > 8e9) throw new Error("This model is too large to share.");
+  return model;
+}
+
 async function rpc(
   peer: StagePeer,
   address: PeerAddress,
@@ -108,31 +163,49 @@ async function peerFor(options: RuntimeOptions) {
     throw error;
   }
 }
-async function assemble(
-  plan: ReturnType<typeof planStage>,
-  store: ModelStore,
-  options: RuntimeOptions,
-) {
-  options.progress({
-    phase: "preparing",
-    message: "Building your half of the model",
-  });
-  return assembleStage(plan, async (c: Chunk) => {
-    options.signal.throwIfAborted();
-    const b = await store.read(c.hash);
-    if (!b || b.length !== c.bytes || !StagePeer.verifyBlob(b, c.hash))
-      throw new Error(
-        "Cached weights failed verification. Try preparing the model again.",
-      );
-    return b;
-  });
+
+/** Shard files (by index in tensor-cache.json) that layers start..end need. */
+async function stageShards(
+  engine: EngineWorker,
+  chatConfig: string,
+  cache: string,
+  start: number,
+  end: number,
+): Promise<Set<number>> {
+  return new Set(
+    await engine.call<number[]>("shardsFor", { chatConfig, cache, start, end }),
+  );
 }
+
+/** Loads layers start..end in the worker from file bytes. */
+async function loadStage(
+  engine: EngineWorker,
+  chatConfig: string,
+  cache: string,
+  shards: (Uint8Array | null)[],
+  start: number,
+  end: number,
+) {
+  // Copy into owned buffers and hand them to the worker without another copy.
+  const buffers = shards.map((s) => (s ? s.slice().buffer : null));
+  await engine.call(
+    "loadStage",
+    { chatConfig, cache, shards: buffers, start, end },
+    { transfer: buffers.filter((b): b is ArrayBuffer => b !== null) },
+  );
+}
+
+/**
+ * Hosts a two-device team: shares the model's files over iroh-blobs, runs
+ * the first half of the layers and asks the invited device for each token.
+ */
 export async function createSplit(
+  model: ModelSpec,
+  base: string,
   options: RuntimeOptions,
   onInvite: (invite: Invitation) => void,
 ): Promise<SharedRuntime> {
-  const store = await ModelStore.open(),
-    gpu = new GpuSession();
+  const engine = new EngineWorker();
   let peer: StagePeer | undefined;
   let helper: PeerAddress | undefined;
   let alive = Date.now();
@@ -141,7 +214,7 @@ export async function createSplit(
   const closed = new AbortController();
   const abort = () => {
     closed.abort();
-    gpu.dispose();
+    engine.terminate();
     void peer?.shutdown();
   };
   options.signal.addEventListener("abort", abort, { once: true });
@@ -149,32 +222,59 @@ export async function createSplit(
   try {
     peer = await peerFor(options);
     const p = peer;
-    const { bytes, config } = await loadSource(store, options);
-    const tokenizer = await loadTokenizer(store, options);
+    await downloadModel(base, options);
+    const tokenizer: Tokenizer = await loadTokenizer(base, options.signal);
+    const read = (name: string) => readModelFile(base, name, options.signal);
+    const chatConfig = decode(await read("mlc-chat-config.json"));
+    const cache = decode(await read("tensor-cache.json"));
+    const records = (JSON.parse(cache) as { records: { dataPath: string }[] })
+      .records;
+    const layers = JSON.parse(chatConfig).model_config
+      .num_hidden_layers as number;
+    const split = Math.floor(layers / 2);
+
     options.progress({
       phase: "preparing",
       message: "Preparing verified weights to share",
     });
-    const manifest = (await publishModel(
-      bytes,
-      config,
-      async (b: Uint8Array) => {
-        options.signal.throwIfAborted();
-        const hash = await p.addBlob(b);
-        await store.write(hash, b);
-        return hash;
-      },
-    )) as Manifest;
-    const manifestBytes = encode(manifest),
-      hash = await p.addBlob(manifestBytes);
-    await store.write(hash, manifestBytes);
-    const graph = (await store.read(manifest.graph.hash))!;
-    const plan = planStage(graph, manifest, "first", 15),
-      model = await assemble(plan, store, options);
-    await gpu.init("first", config, plan.outputs as string[], model);
+    const files: Manifest["files"] = [];
+    const shardBytes: Uint8Array[] = [];
+    for (const name of [...CONFIG_FILES, ...records.map((r) => r.dataPath)]) {
+      options.signal.throwIfAborted();
+      const bytes = await read(name);
+      if (!CONFIG_FILES.includes(name)) shardBytes.push(bytes);
+      const chunks: Chunk[] = [];
+      for (let at = 0; at < bytes.length; at += CHUNK_BYTES) {
+        const part = bytes.subarray(at, at + CHUNK_BYTES);
+        chunks.push({ hash: await p.addBlob(part), bytes: part.length });
+      }
+      files.push({ name, bytes: bytes.length, chunks });
+    }
+    const manifest: Manifest = {
+      version: 2,
+      model: model.id,
+      layers,
+      split,
+      files,
+    };
+    const manifestBytes = encode(manifest);
+    const hash = await p.addBlob(manifestBytes);
+
+    options.progress({ phase: "preparing", message: "Preparing your GPU" });
+    const need = await stageShards(engine, chatConfig, cache, 0, split);
+    await loadStage(
+      engine,
+      chatConfig,
+      cache,
+      shardBytes.map((b, i) => (need.has(i) ? b : null)),
+      0,
+      split,
+    );
     options.signal.throwIfAborted();
+
     const invite: Invitation = {
-      version: 1,
+      version: 2,
+      model: model.id,
       address: p.address(),
       manifest: { hash, bytes: manifestBytes.length },
       secret: crypto.randomUUID(),
@@ -242,34 +342,31 @@ export async function createSplit(
         if (active) throw new Error("This team is already generating.");
         if (!helper || disposed || Date.now() - alive > 120_000)
           throw new Error("The other device is unavailable.");
-        prepareGeneration(tokenizer, request);
+        const { temperature } = prepareGeneration(tokenizer, request);
         active = true;
         const address = helper,
-          id = crypto.randomUUID();
+          id = crypto.randomUUID(),
+          seed = crypto.getRandomValues(new Uint32Array(1))[0];
         let step = 0;
         try {
-          await gpu.reset();
-          await rpc(p, address, { type: "begin", id });
+          await engine.call("reset");
+          await rpc(p, address, { type: "begin", id, temperature, seed });
           return await generateText(
             tokenizer,
-            SMOL_ID,
+            model.id,
             request,
             signal,
-            async (tokens, temperature) => {
-              const first = await gpu.forward(tokens);
+            async (tokens) => {
+              const hidden = await engine.call<Float32Array>("runTokens", {
+                tokens,
+              });
               signal.throwIfAborted();
-              if (!first.gpuDispatches || first.cacheTensors !== 30)
-                throw new Error("First stage GPU inference failed.");
               const second = await rpc(p, address, {
                 type: "step",
                 id,
                 step: step++,
-                tokens,
-                temperature,
-                tensors: first.tensors,
+                hidden,
               });
-              if (!second.gpuDispatches || second.cacheTensors !== 30)
-                throw new Error("Second stage GPU inference failed.");
               return second.token;
             },
             chunk,
@@ -281,7 +378,7 @@ export async function createSplit(
             );
           throw error;
         } finally {
-          await gpu.reset().catch(() => {});
+          await engine.call("reset").catch(() => {});
           await rpc(p, address, { type: "end", id }).catch(() => {});
           active = false;
         }
@@ -290,7 +387,7 @@ export async function createSplit(
         disposed = true;
         closed.abort();
         clearInterval(heartbeat);
-        gpu.dispose();
+        engine.terminate();
         await p.shutdown();
       },
     };
@@ -300,17 +397,16 @@ export async function createSplit(
     throw error;
   } finally {
     options.signal.removeEventListener("abort", abort);
-    store.close();
   }
 }
 
-/** The invited device runs only layers 15–29; it is not advertised as a complete model. */
+/** The invited device runs only the second half of the layers; it is not advertised as a complete model. */
 export async function joinSplit(
   invite: Invitation,
   options: RuntimeOptions,
 ): Promise<SharedRuntime> {
   const store = await ModelStore.open(),
-    gpu = new GpuSession();
+    engine = new EngineWorker();
   let peer: StagePeer | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let disposed = false;
@@ -319,7 +415,7 @@ export async function joinSplit(
   const state = new StageState(invite.address.id);
   const abort = () => {
     closed.abort();
-    gpu.dispose();
+    engine.terminate();
     void peer?.shutdown();
   };
   options.signal.addEventListener("abort", abort, { once: true });
@@ -351,42 +447,87 @@ export async function joinSplit(
         beating = false;
       }
     }, 5000);
+    // A received chunk also shows that the host is reachable: heartbeats
+    // can time out while weight transfers fill a slow relay connection.
+    const receiving: RuntimeOptions = {
+      ...options,
+      progress: (value) => {
+        lastHeartbeat = Date.now();
+        options.progress(value);
+      },
+    };
     options.progress({
       phase: "downloading",
       message: "Receiving the model manifest",
     });
     const manifest = JSON.parse(
-      new TextDecoder().decode(
+      decode(
         await store.blob(invite.manifest, p, invite.address, options.signal),
       ),
     ) as Manifest;
     validateManifest(manifest);
-    options.progress({
-      phase: "downloading",
-      message: "Receiving the model graph",
-    });
-    const graph = await store.blob(
-        manifest.graph,
-        p,
-        invite.address,
-        options.signal,
-      ),
-      plan = planStage(graph, manifest, "second", 15);
+    if (manifest.model !== invite.model)
+      throw new Error("This invitation offers a different model.");
+    // Receives a file's chunks (verified and saved by the store), then joins them.
+    const fetchFile = async (name: string, receive = true) => {
+      const file = manifest.files.find((f) => f.name === name)!;
+      if (receive)
+        await store.prefetch(file.chunks, p, invite.address, receiving);
+      const bytes = new Uint8Array(file.bytes);
+      let at = 0;
+      for (const c of file.chunks) {
+        const part = await store.read(c.hash);
+        if (part?.length !== c.bytes)
+          throw new Error("Received weights are missing. Rejoin the team.");
+        bytes.set(part, at);
+        at += c.bytes;
+      }
+      return bytes;
+    };
+    const chatConfig = decode(await fetchFile("mlc-chat-config.json"));
+    const cache = decode(await fetchFile("tensor-cache.json"));
+    const records = (JSON.parse(cache) as { records: { dataPath: string }[] })
+      .records;
+    const { split, layers } = manifest;
+    const need = await stageShards(engine, chatConfig, cache, split, layers);
+    // Receive all needed chunks first so progress covers the whole stage.
+    const needed = records
+      .filter((_, i) => need.has(i))
+      .map((r) => manifest.files.find((f) => f.name === r.dataPath));
+    if (needed.some((f) => !f))
+      throw new Error("This invitation has an invalid model manifest.");
     await store.prefetch(
-      plan.tensors.flatMap((t: any) => t.chunks),
+      needed.flatMap((f) => f!.chunks),
       p,
       invite.address,
-      options,
+      receiving,
     );
-    const model = await assemble(plan, store, options);
-    await gpu.init("second", manifest.config, plan.outputs as string[], model);
+    const shards: (Uint8Array | null)[] = [];
+    for (const [i, r] of records.entries())
+      shards.push(need.has(i) ? await fetchFile(r.dataPath, false) : null);
+    options.progress({ phase: "preparing", message: "Preparing your GPU" });
+    await loadStage(engine, chatConfig, cache, shards, split, layers);
     options.signal.throwIfAborted();
+    const range = `layers ${split}–${layers - 1}`;
     void listen(p, closed.signal, async (message, remote) => {
       state.authorize(remote);
       lastCommand = Date.now();
       if (message.type === "begin") {
+        if (
+          !Number.isFinite(message.temperature) ||
+          message.temperature < 0 ||
+          message.temperature > 2 ||
+          !Number.isInteger(message.seed) ||
+          message.seed < 0 ||
+          message.seed > 0xffffffff
+        )
+          throw new Error("Invalid stage input.");
         state.begin(remote, message.id);
-        await gpu.reset();
+        await engine.call("reset");
+        await engine.call("sampling", {
+          temperature: message.temperature,
+          seed: message.seed,
+        });
         options.progress({
           phase: "busy",
           message: "Running the second half of a reply",
@@ -395,35 +536,20 @@ export async function joinSplit(
       }
       if (message.type === "end") {
         state.end(remote, message.id);
-        await gpu.reset();
-        options.progress({
-          phase: "ready",
-          message: "Paired · layers 15–29 ready",
-        });
+        await engine.call("reset");
+        options.progress({ phase: "ready", message: `Paired · ${range} ready` });
         return { ok: true };
       }
       if (message.type === "step") {
         state.next(remote, message.id, message.step);
-        if (
-          !Array.isArray(message.tokens) ||
-          message.tokens.length < 1 ||
-          message.tokens.length > 1024 ||
-          !message.tokens.every(
-            (t: any) => Number.isInteger(t) && t >= 0 && t < 49152,
-          ) ||
-          !Number.isFinite(message.temperature) ||
-          message.temperature < 0 ||
-          message.temperature > 2
-        )
+        if (!(message.hidden instanceof Float32Array))
           throw new Error("Invalid stage input.");
-        const result = await gpu.forward(message.tokens, message.tensors);
-        if (result.pastLength > 1024 || !result.logits)
-          throw new Error("Stage context limit exceeded.");
-        return {
-          token: selectToken(result.logits, message.temperature),
-          gpuDispatches: result.gpuDispatches,
-          cacheTensors: result.cacheTensors,
-        };
+        const token = await engine.call<number>(
+          "runHidden",
+          { hidden: message.hidden },
+          { transfer: [message.hidden.buffer] },
+        );
+        return { token };
       }
       throw new Error("Unsupported stage command.");
     }).catch((error) => {
@@ -433,13 +559,13 @@ export async function joinSplit(
     options.signal.removeEventListener("abort", abort);
     options.progress({
       phase: "ready",
-      message: `Paired · layers 15–29 · ${(store.downloaded / 1e6).toFixed(1)} MB received, ${(store.reused / 1e6).toFixed(1)} MB reused`,
+      message: `Paired · ${range} · ${(store.downloaded / 1e6).toFixed(1)} MB received, ${(store.reused / 1e6).toFixed(1)} MB reused`,
     });
     // Bound abandoned KV state. Every generation still explicitly resets before use.
     const idle = setInterval(() => {
       if (Date.now() - lastCommand > 90_000) {
         state.clear();
-        void gpu.reset().catch(() => {});
+        void engine.call("reset").catch(() => {});
         lastCommand = Date.now();
       }
     }, 15_000);
@@ -452,21 +578,21 @@ export async function joinSplit(
         closed.abort();
         clearInterval(heartbeat);
         clearInterval(idle);
-        gpu.dispose();
+        engine.terminate();
         await rpc(p, invite.address, {
           type: "leave",
           secret: invite.secret,
         }).catch(() => {});
         await p.shutdown();
+        store.close();
       },
     };
   } catch (error) {
     disposed = true;
-    clearInterval(heartbeat);
     abort();
+    store.close();
     throw error;
   } finally {
     options.signal.removeEventListener("abort", abort);
-    store.close();
   }
 }

@@ -106,11 +106,9 @@
   const gpuProblem = $derived(
     !gpuReady
       ? "Checking this device’s GPU…"
-      : model.runtime === "onnx"
-        ? (gpu?.onnxProblem ?? null)
-        : model.runtime === "core"
-          ? (gpu?.coreProblem ?? null)
-          : (gpu?.webllmProblem ?? null),
+      : model.runtime === "core"
+        ? (gpu?.coreProblem ?? null)
+        : (gpu?.webllmProblem ?? null),
   );
   const status = $derived(
     connection === "error"
@@ -314,16 +312,18 @@
       !invitation ||
       !contributor ||
       !gpuReady ||
-      gpu?.onnxProblem ||
+      gpu?.coreProblem ||
       contribution.running
     )
       return;
     const invite = invitation;
+    const teamModel = MODELS.find((m) => m.id === invite.model);
+    if (!teamModel) return;
     joinPending = true;
-    setModel(SMOL_ID);
+    setModel(teamModel.id);
     dismissInvitation();
     void contributor
-      .start(MODELS[0], "helper", invite)
+      .start(teamModel, "helper", invite)
       .catch((error) => toast(String(error)))
       .finally(() => (joinPending = false));
   }
@@ -357,8 +357,6 @@
         if (!disposed)
           gpu = {
             name: "GPU unavailable",
-            onnxProblem:
-              "This browser cannot share its GPU. You can still chat using a network worker.",
             webllmProblem:
               "This browser cannot share its GPU. You can still chat using a network worker.",
             coreProblem:
@@ -526,15 +524,15 @@
           <p>
             {contribution.running
               ? "Stop your current contribution before joining this team."
-              : gpuReady && gpu?.onnxProblem
-                ? gpu.onnxProblem
+              : gpuReady && gpu?.coreProblem
+                ? gpu.coreProblem
                 : "This device will run half the layers. Join only if you trust the sender."}
           </p>
         </div>
         <Button
           class="button primary"
           disabled={!contributorReady ||
-            !!gpu?.onnxProblem ||
+            !!gpu?.coreProblem ||
             contribution.running ||
             joinPending}
           onclick={join}>Join team</Button

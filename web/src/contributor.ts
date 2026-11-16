@@ -2,7 +2,6 @@ import type { Job, MeshNode } from "./wasm/peerinfer_web.js";
 import { testWeights, type ModelSpec } from "./config";
 import type { CompletionRequest, WorkerInfo } from "./types";
 import type { Runtime, RuntimeOptions, RuntimeProgress } from "./runtime/types";
-import { createOnnx } from "./runtime/onnx";
 import { createSplit, joinSplit, type Invitation } from "./runtime/split";
 
 /** One queue consumer survives contribution changes; model sessions never own the queue. */
@@ -128,29 +127,27 @@ export class Contributor {
         void runtime?.dispose().catch(() => {});
       },
     };
+    // MLC weights for the core runtime; ?weights= replaces them in development.
+    const base = model.source
+      ? new URL(testWeights() ?? model.source, location.href).href
+      : "";
     try {
       const runtime =
         mode === "helper"
           ? await joinSplit(invite!, options)
           : mode === "shared"
-            ? await createSplit(options, (i) => {
+            ? await createSplit(model, base, options, (i) => {
                 if (this.version !== version) return;
                 this.invite = i;
                 this.changed();
               })
-            : model.runtime === "onnx"
-              ? await createOnnx(options)
-              : model.runtime === "core"
-                ? await (
-                    await import("./runtime/core")
-                  ).createCore(
-                    model.id,
-                    new URL(testWeights() ?? model.source!, location.href).href,
-                    options,
-                  )
-                : await (
-                    await import("./runtime/webllm")
-                  ).createWebLlm(model.id, options);
+            : model.runtime === "core"
+              ? await (
+                  await import("./runtime/core")
+                ).createCore(model.id, base, options)
+              : await (
+                  await import("./runtime/webllm")
+                ).createWebLlm(model.id, options);
       if (this.version !== version || loading.signal.aborted) {
         await runtime.dispose();
         return;
@@ -295,7 +292,6 @@ export class Contributor {
 }
 export interface GpuCheck {
   name: string;
-  onnxProblem: string | null;
   webllmProblem: string | null;
   /** The core runtime needs only WebGPU's default limits. */
   coreProblem: string | null;
@@ -305,8 +301,6 @@ export async function checkGpu(): Promise<GpuCheck> {
   if (!adapter || adapter.info.isFallbackAdapter)
     return {
       name: "WebGPU unavailable",
-      onnxProblem:
-        "Contributing needs WebGPU. Try a recent Chrome or Edge browser.",
       webllmProblem:
         "Contributing needs WebGPU. Try a recent Chrome or Edge browser.",
       coreProblem:
@@ -316,10 +310,6 @@ export async function checkGpu(): Promise<GpuCheck> {
     [adapter.info.vendor, adapter.info.architecture]
       .filter(Boolean)
       .join(" · ") || "WebGPU";
-  const problem =
-    adapter.limits.maxStorageBufferBindingSize < 120_000_000
-      ? "This GPU cannot hold the model’s shared embedding."
-      : null;
   const limits: [keyof GPUSupportedLimits, number][] = [
     ["maxStorageBuffersPerShaderStage", 10],
     ["maxComputeWorkgroupStorageSize", 32768],
@@ -331,7 +321,6 @@ export async function checkGpu(): Promise<GpuCheck> {
   );
   return {
     name,
-    onnxProblem: problem,
     webllmProblem: failed
       ? "This browser’s GPU limits are too low for WebLLM. Try Chrome or Edge."
       : null,

@@ -3,7 +3,7 @@ name = "peerinfer"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
-description = "Run prompts on browser tabs that serve WebLLM over iroh"
+description = "Run language models on a pool of devices connected over iroh"
 
 [[bin]]
 name = "peerinfer"
@@ -14,5 +14,11 @@ anyhow.workspace = true
 clap = { version = "4", features = ["derive", "env"] }
 iroh.workspace = true
 peerinfer-net.workspace = true
+peerinfer-core = { path = "../../../peerinfer-core/crates/core" }
+iroh-blobs = { version = "=0.104.1", default-features = false }
+tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+getrandom = "0.3"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "time", "signal"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
