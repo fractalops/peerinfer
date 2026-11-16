@@ -14,8 +14,8 @@
   "dependencies": {
     "@huggingface/tokenizers": "0.2.0",
     "@mlc-ai/web-llm": "0.2.88",
-    "@ui-sdk/core": "0.1.0-beta.1",
-    "@ui-sdk/svelte": "0.1.0-beta.1",
+    "@ui-sdk/core": "0.1.0-beta.3",
+    "@ui-sdk/svelte": "0.1.0-beta.3",
     "dompurify": "3.4.17",
     "marked": "18.2.0",
     "svelte": "5.57.3"
