@@ -593,7 +593,7 @@ impl TeamMember {
     }
 
     /// Leaves the team and closes the connection.
-    pub async fn leave(self) {
+    pub async fn leave(&self) {
         let _ = request::<_, FromHost>(&self.conn, &ToHost::Leave).await;
         self.conn.close(0u32.into(), b"leave");
     }

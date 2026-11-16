@@ -11,13 +11,24 @@
   } from "@ui-sdk/svelte/dialog";
   import { Field, FieldLabel } from "@ui-sdk/svelte/field";
   import { Radio, RadioGroup, RadioIndicator } from "@ui-sdk/svelte/radio";
+  import {
+    SegmentedControl,
+    SegmentedControlIndicator,
+    SegmentedControlItem,
+  } from "@ui-sdk/svelte/segmented-control";
   import { Input } from "@ui-sdk/svelte/input";
   import {
     Progress,
     ProgressTrack,
     ProgressIndicator,
   } from "@ui-sdk/svelte/progress";
-  import { layerLabel, teamLayers, type ModelSpec } from "../config";
+  import {
+    MAX_TEAM_DEVICES,
+    layerLabel,
+    teamRanges,
+    type ModelSpec,
+  } from "../config";
+  import type { TeamLayout } from "../runtime/split";
   import type { RuntimeProgress } from "../runtime/types";
   import Icon from "./Icon.svelte";
   interface Props {
@@ -29,10 +40,13 @@
     paused: boolean;
     mode: string;
     invite: string;
+    /** The invitation as text for `peerinfer join`. */
+    inviteText: string;
+    layout?: TeamLayout;
     problem: string | null;
     connected: boolean;
     contributingModel?: string;
-    onstart: (mode: "whole" | "shared") => void;
+    onstart: (mode: "whole" | "shared", devices: number) => void;
     onstop: () => Promise<void>;
     onpause: () => void;
     oncopy: (text: string) => Promise<boolean>;
@@ -46,6 +60,8 @@
     paused,
     mode,
     invite,
+    inviteText,
+    layout,
     problem,
     connected,
     contributingModel,
@@ -54,10 +70,16 @@
     onpause,
     oncopy,
   }: Props = $props();
-  const team = $derived(teamLayers(model));
   let open = $state(false),
     selectedMode = $state<string | null>("whole"),
+    selectedDevices = $state<string | null>("2"),
     copied = $state(false);
+  const deviceChoices = $derived(
+    Array.from(
+      { length: Math.min(MAX_TEAM_DEVICES, model.layers ?? 2) - 1 },
+      (_, i) => i + 2,
+    ),
+  );
   let stopping = $state(false);
   const loading = $derived(
     ["downloading", "preparing", "pairing"].includes(progress.phase),
@@ -187,25 +209,29 @@
           {progress.total
             ? `${((progress.loaded ?? 0) / 1e6).toFixed(1)} / ${(progress.total / 1e6).toFixed(1)} MB`
             : progress.phase === "pairing"
-              ? "Waiting for the second device to join."
+              ? "Waiting for the other devices to join."
               : "Preparing the model…"}
         </p>
       {/if}
-      {#if mode === "shared" || mode === "helper"}<div class="team-diagram">
-          <span
-            ><Icon name="device" /><strong
-              >{mode === "helper" ? "Paired device" : "This device"}</strong
-            ><small>{layerLabel(0, team.split)}</small></span
-          ><span class="team-connection">↔<small>iroh</small></span><span
-            ><Icon name="device" /><strong
-              >{mode === "helper" ? "This device" : "Paired device"}</strong
-            ><small>{layerLabel(team.split, team.layers)}</small></span
-          >
+      {#if (mode === "shared" || mode === "helper") && layout}<div
+          class="team-diagram"
+        >
+          {#each layout.ranges as [start, end], i (start)}{#if i > 0}<span
+                class="team-connection">↔<small>iroh</small></span
+              >{/if}<span
+              ><Icon name="device" /><strong
+                >{i === layout.mine
+                  ? "This device"
+                  : i === 0
+                    ? "Host"
+                    : `Device ${i + 1}`}</strong
+              ><small>{layerLabel(start, end)}</small></span
+            >{/each}
         </div>{/if}
       {#if invite && progress.phase !== "error"}
         <div class="invite-copy">
           <Field
-            ><FieldLabel>Invite your second device</FieldLabel><Input
+            ><FieldLabel>Invite the other devices</FieldLabel><Input
               value={invite}
               readonly
               autocomplete="off"
@@ -224,8 +250,9 @@
           >
         </div>
         <p class="small muted">
-          Open this link on a device you trust. Both browsers need a supported
-          GPU.
+          Open this link on each device you trust. Every device needs a GPU
+          with WebGPU. On a computer with the command-line tool, run
+          <code class="invite-command">peerinfer join {inviteText}</code>
         </p>
       {/if}
       <div class="dialog-actions">
@@ -258,16 +285,36 @@
           >
           {#if model.shared}<label class="mode-option"
               ><Radio value="shared"><RadioIndicator /></Radio><span
-                ><strong>With another device <em>Experimental</em></strong
-                ><small>Split the model’s layers between two browsers.</small
+                ><strong>With other devices <em>Experimental</em></strong
+                ><small
+                  >Split the model’s layers between browsers or computers.</small
                 ></span
               ></label
             >{/if}
         </RadioGroup></Field
       >
-      {#if selectedMode === "shared"}<p class="notice">
-          Both devices download model weights. Splitting may be slower than one
-          device; this is an experiment in shared compute.
+      {#if selectedMode === "shared"}<Field
+          ><FieldLabel class="field-heading">Devices in the team</FieldLabel
+          ><SegmentedControl
+            bind:value={selectedDevices}
+            class="device-count"
+            ><SegmentedControlIndicator class="device-count-indicator" />
+            {#each deviceChoices as n (n)}<SegmentedControlItem
+                value={String(n)}
+                class="device-count-item">{n} devices</SegmentedControlItem
+              >{/each}
+          </SegmentedControl></Field
+        ><p class="small muted">
+          Layers per device: {teamRanges(
+            model.layers ?? 0,
+            Number(selectedDevices ?? 2),
+          )
+            .map(([s, e]) => `${s}–${e - 1}`)
+            .join(" · ")}
+        </p><p class="notice">
+          This device downloads the whole model and sends each other device the
+          files for its layers. Every token passes through all devices, so a
+          team can be slower than one device.
         </p>{/if}
       <p class="small muted">
         Sharing uses GPU memory, power, and bandwidth. Keep this tab visible.
@@ -280,7 +327,10 @@
           disabled={!!blocked}
           onclick={() => {
             open = false;
-            onstart(selectedMode === "shared" ? "shared" : "whole");
+            onstart(
+              selectedMode === "shared" ? "shared" : "whole",
+              Number(selectedDevices ?? 2),
+            );
           }}>Start sharing <Icon name="external" size={17} /></Button
         >
       </div>

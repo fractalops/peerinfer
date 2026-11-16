@@ -2,7 +2,13 @@ import type { Job, MeshNode } from "./wasm/peerinfer_web.js";
 import { testWeights, type ModelSpec } from "./config";
 import type { CompletionRequest, WorkerInfo } from "./types";
 import type { Runtime, RuntimeOptions, RuntimeProgress } from "./runtime/types";
-import { createSplit, joinSplit, type Invitation } from "./runtime/split";
+import {
+  createSplit,
+  joinSplit,
+  type Invitation,
+  type SharedRuntime,
+  type TeamLayout,
+} from "./runtime/split";
 
 /** One queue consumer survives contribution changes; model sessions never own the queue. */
 export class Contributor {
@@ -13,6 +19,10 @@ export class Contributor {
   model?: ModelSpec;
   mode: "whole" | "shared" | "helper" = "whole";
   invite?: Invitation;
+  /** Devices in a team this tab hosts. */
+  devices = 1;
+  /** Layer ranges of the team this tab belongs to. */
+  layout?: TeamLayout;
   startedAt = 0;
   served = 0;
   tokensOut = 0;
@@ -73,7 +83,7 @@ export class Contributor {
     return {
       model: this.model.id,
       state,
-      adapter: `${this.adapter}${this.mode === "shared" ? " · 2 devices" : ""}`,
+      adapter: `${this.adapter}${this.mode === "shared" ? ` · ${this.devices} devices` : ""}`,
       active: this.busy ? 1 : 0,
       waiting: this.node.waiting(),
       served: this.served,
@@ -95,9 +105,12 @@ export class Contributor {
     model: ModelSpec,
     mode: "whole" | "shared" | "helper",
     invite?: Invitation,
+    devices = 2,
   ): Promise<void> {
     if (this.running) throw new Error("Stop the current contribution first.");
     const version = ++this.version;
+    this.devices = mode === "shared" ? devices : 1;
+    this.layout = undefined;
     this.model = model;
     this.mode = mode;
     this.startedAt = Date.now();
@@ -136,7 +149,7 @@ export class Contributor {
         mode === "helper"
           ? await joinSplit(invite!, options)
           : mode === "shared"
-            ? await createSplit(model, base, options, (i) => {
+            ? await createSplit(model, base, devices, options, (i) => {
                 if (this.version !== version) return;
                 this.invite = i;
                 this.changed();
@@ -153,6 +166,7 @@ export class Contributor {
         return;
       }
       this.runtime = runtime;
+      this.layout = (runtime as SharedRuntime).layout;
       this.loading = undefined;
       if (this.progress.phase === "error") {
         await runtime.dispose();
@@ -166,7 +180,7 @@ export class Contributor {
           mode === "helper"
             ? this.progress.message
             : mode === "shared"
-              ? "Team ready · both devices connected"
+              ? `Team ready · ${devices} devices connected`
               : "Your GPU is ready to answer",
       });
     } catch (error) {
@@ -189,6 +203,7 @@ export class Contributor {
     const runtime = this.runtime;
     this.runtime = undefined;
     this.invite = undefined;
+    this.layout = undefined;
     this.paused = false;
     this.update({ phase: "stopped", message: "Your GPU is not contributing" });
     await this.node.leave().catch(() => {});

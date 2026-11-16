@@ -139,6 +139,23 @@ A frame is a 4-byte big-endian length and a [postcard](https://docs.rs/postcard)
 
 If the stream ends before `Done` or `Error`, the client reports an incomplete completion.
 
+## Team protocol
+
+ALPN: `peerinfer/team/0`. A team runs one model on several devices. Each device runs a contiguous range of layers. The host runs the first range, answers pool requests and offers the model files. The types are in `crates/net/src/team.rs`.
+
+The invitation is the host's endpoint address and a 16-byte secret, as postcard bytes in hexadecimal.
+
+1. A member connects to the host and keeps the connection. On a new stream it sends `Join` with the secret. The host answers `Assigned` with the next free layer range and the manifest: the model ID, its number of layers, and the name, BLAKE3 hash and size of each file.
+2. The member receives the files that its layers need with iroh-blobs (ALPN `/iroh-bytes/4`), which checks each file against its hash.
+3. The member loads its layers and sends `Ready`.
+4. For each request, the host opens one stream per message on the member's connection:
+   - `Begin` with a run number, the temperature and the sampling seed. The member clears its context.
+   - `Step` with the run number, the step number and the hidden states from the stage before it: `hidden_size` f32 values per token. A middle member answers `Hidden` with its output; the last member answers `Token`. The host sends the members' steps in layer order.
+   - `End` with the run number.
+5. A member sends `Leave`, or closes its connection, to leave the team.
+
+Each message and each reply is one frame, in the same format as the completion protocol. The largest team frame is 64 MiB. A member rejects a `Step` for an unknown run or out of order, and a `Begin` with a run number it has seen before. The host waits up to 120 s for each reply. A team takes requests only while every member is connected and ready.
+
 ## Build from source
 
 You need Rust with the `wasm32-unknown-unknown` target, `wasm-bindgen-cli` at the same version as the `wasm-bindgen` crate in `Cargo.lock`, and Node.js 22.18 or later. On macOS, also install LLVM (`brew install llvm`). Apple clang cannot compile C code for wasm32.

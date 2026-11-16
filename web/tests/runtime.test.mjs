@@ -7,26 +7,11 @@ import {
   generateText,
   selectToken,
 } from "../src/runtime/generation.ts";
-import { StageState } from "../src/runtime/stage-state.ts";
 import { chatCandidates, completeChat } from "../src/chat-client.ts";
 const fixture = new URL(
   "../../fixtures/smollm2-135m/",
   import.meta.url,
 );
-
-test("stage authorization and sequencing protect the shared KV cache", () => {
-  const state = new StageState("host"),
-    id = "12345678-1234-1234-1234-123456789012";
-  assert.throws(() => state.begin("stranger", id), /different coordinator/);
-  state.begin("host", id);
-  assert.throws(() => state.begin("host", id), /already active/);
-  assert.throws(() => state.next("host", id, 1), /Out-of-order/);
-  state.next("host", id, 0);
-  assert.throws(() => state.next("host", id, 0), /Out-of-order/);
-  assert.throws(() => state.end("stranger", id), /different coordinator/);
-  state.end("host", id);
-  assert.throws(() => state.next("host", id, 1), /Out-of-order/);
-});
 
 test("chat template uses the published SmolLM structure and preserves roles", () => {
   assert.equal(

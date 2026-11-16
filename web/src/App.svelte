@@ -1,6 +1,18 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { Button } from "@ui-sdk/svelte/button";
+  import {
+    Toast,
+    ToastClose,
+    ToastRegion,
+    ToastTitle,
+    toast as notify,
+  } from "@ui-sdk/svelte/toast";
+  import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+  } from "@ui-sdk/svelte/tooltip";
   import { Textarea } from "@ui-sdk/svelte/textarea";
   import { Field, FieldLabel } from "@ui-sdk/svelte/field";
   import {
@@ -29,6 +41,7 @@
     readInvitation,
     invitationUrl,
     type Invitation,
+    type TeamLayout,
   } from "./runtime/split";
   import type { RuntimeProgress } from "./runtime/types";
   import type { Member } from "./types";
@@ -65,18 +78,18 @@
     mode: "whole",
     model: "",
     invite: "",
+    inviteText: "",
+    layout: undefined as TeamLayout | undefined,
     progress: { phase: "stopped", message: "" } as RuntimeProgress,
   });
   let invitation = $state<Invitation>(),
-    joinPending = $state(false),
-    notice = $state("");
+    joinPending = $state(false);
   let feed = $state<HTMLElement>();
   let follow = $state(true),
     session = $state.raw<MeshSession>(),
     contributor = $state.raw<Contributor>();
   let disposed = false,
-    connecting = false,
-    noticeTimer: ReturnType<typeof setTimeout>;
+    connecting = false;
   const current = $derived(
     chatState.conversations.find((item) => item.id === chatState.active)!,
   );
@@ -138,9 +151,7 @@
   ];
 
   function toast(text: string) {
-    clearTimeout(noticeTimer);
-    notice = text;
-    noticeTimer = setTimeout(() => (notice = ""), 6000);
+    notify(text, { duration: 6000 });
   }
   async function copy(text: string) {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -186,6 +197,8 @@
         mode: contributor.mode,
         model: contributor.model?.name ?? "",
         invite: contributor.invite ? invitationUrl(contributor.invite) : "",
+        inviteText: contributor.invite?.text ?? "",
+        layout: contributor.layout,
         progress: { ...contributor.progress },
       };
     chat.updateNetwork(session?.node, members);
@@ -289,8 +302,10 @@
     follow = true;
     feed?.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
   }
-  function start(mode: "whole" | "shared") {
-    void contributor?.start(model, mode).catch((error) => toast(String(error)));
+  function start(mode: "whole" | "shared", devices = 2) {
+    void contributor
+      ?.start(model, mode, undefined, devices)
+      .catch((error) => toast(String(error)));
   }
   async function stop() {
     await contributor?.stop().catch((error) => toast(String(error)));
@@ -386,7 +401,6 @@
     window.addEventListener("pageshow", resume);
     return () => {
       unsubscribe();
-      clearTimeout(noticeTimer);
       clearTimeout(gpuTimer);
       close();
       window.removeEventListener("hashchange", loadInvitation);
@@ -406,6 +420,8 @@
     paused={contribution.paused}
     mode={contribution.mode}
     invite={contribution.invite}
+    inviteText={contribution.inviteText}
+    layout={contribution.layout}
     contributingModel={contribution.model}
     problem={gpuProblem}
     connected={contributorReady}
@@ -510,10 +526,11 @@
             class:online={connection === "connected"}
             class:failed={connection === "error"}
           ></span><span>{status}</span></Button
-        ><Button
-          class="icon-button mobile-new"
-          onclick={newChat}
-          aria-label="New conversation"><Icon name="plus" /></Button
+        ><Tooltip
+          ><TooltipTrigger class="icon-button mobile-new" onclick={newChat}
+            ><Icon name="plus" /></TooltipTrigger
+          ><TooltipContent class="tooltip">New conversation</TooltipContent
+          ></Tooltip
         >
       </div>
     </header>
@@ -729,10 +746,11 @@
 <div class="sr-only" aria-live="polite" aria-atomic="true">
   {chatState.announcement}
 </div>
-{#if notice}<div class="toast" role="status">
-    {notice}<Button
+<ToastRegion class="toast-region" aria-label="Notifications">
+  <Toast class="toast"
+    ><ToastTitle /><ToastClose
       class="icon-button small"
-      aria-label="Dismiss notification"
-      onclick={() => (notice = "")}><Icon name="close" size={15} /></Button
-    >
-  </div>{/if}
+      aria-label="Dismiss notification"><Icon name="close" size={15} /></ToastClose
+    ></Toast
+  >
+</ToastRegion>

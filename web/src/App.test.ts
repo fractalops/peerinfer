@@ -70,6 +70,7 @@ vi.mock("./runtime/split", () => ({
 const agent = createAgent();
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.start.mockResolvedValue(undefined);
   mocks.workerModel = modelId;
   history.replaceState(null, "", "/");
   mocks.gpu.mockResolvedValue({
@@ -96,7 +97,13 @@ test("named SDK controls route a chat, render its reply, and keep it when starti
   await screen.findByText("1 worker available");
   const components = agent
     .snapshot()
-    .filter((entry) => !entry.offPage && entry.component !== "more");
+    // An empty toast region is named only once it holds a toast.
+    .filter(
+      (entry) =>
+        !entry.offPage &&
+        entry.component !== "more" &&
+        !(entry.component === "toast" && !entry.label),
+    );
   for (const entry of components)
     expect(entry.label, `${entry.component} has no name`).toBeTruthy();
   const labels = components.map((entry) => entry.label);
@@ -151,6 +158,8 @@ test("chat sharing shortcut stays opt-in and returns focus when dismissed", asyn
   expect(mocks.start).toHaveBeenCalledWith(
     expect.objectContaining({ id: modelId }),
     "whole",
+    undefined,
+    2,
   );
 });
 
@@ -168,21 +177,24 @@ test("chat can connect while a GPU capability probe remains pending", async () =
   ).toBe(false);
 });
 
-test("two-device sharing is an explicit selection", async () => {
+test("team sharing is an explicit selection with a device count", async () => {
   render(App);
   await screen.findByText("1 worker available");
   await userEvent.click(
     screen.getAllByRole("button", { name: "Share compute" })[0],
   );
   await userEvent.click(
-    screen.getByRole("radio", { name: /With another device/ }),
+    screen.getByRole("radio", { name: /With other devices/ }),
   );
-  await screen.findByText(/Splitting may be slower/);
+  await screen.findByText(/a team can be slower/);
+  await userEvent.click(screen.getByRole("radio", { name: /3 devices/ }));
   expect(mocks.start).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Start sharing" }));
   expect(mocks.start).toHaveBeenCalledWith(
     expect.objectContaining({ id: modelId }),
     "shared",
+    undefined,
+    3,
   );
 });
 

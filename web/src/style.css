@@ -1211,12 +1211,22 @@ strong {
   color: #c6c6c6;
   margin-top: 5px;
 }
-.toast {
+.toast-region {
   position: fixed;
   bottom: 22px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+}
+.toast-region:empty {
+  display: none;
+}
+.toast {
   background: #e4e4e4;
   color: #252525;
   border: 1px solid #cdcdcd;
@@ -1751,4 +1761,53 @@ strong {
   min-height: 36px;
   font-size: 12px;
   padding: 8px 12px;
+}
+
+.invite-command {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.tooltip {
+  background: #e4e4e4;
+  color: #252525;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  box-shadow: 0 4px 16px #0005;
+}
+.tooltip:not([data-open]) {
+  display: none;
+}
+
+.device-count {
+  position: relative;
+  display: inline-flex;
+  isolation: isolate;
+  padding: 3px;
+  border: 1px solid var(--line, #3a3a3a);
+  border-radius: 9px;
+}
+.device-count-item {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.device-count-indicator {
+  position: absolute;
+  z-index: -1;
+  top: var(--segmented-control-indicator-top);
+  left: var(--segmented-control-indicator-left);
+  width: var(--segmented-control-indicator-width);
+  height: var(--segmented-control-indicator-height);
+  border-radius: 6px;
+  background: var(--panel-raised, #2c2c2c);
+  transition-property: top, left, width, height;
+  transition-duration: 200ms;
+}
+.icon-button[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

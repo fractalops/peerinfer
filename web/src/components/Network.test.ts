@@ -98,7 +98,7 @@ test("worker details stay live and stop showing a departed worker as available",
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
-test("full queues do not advertise model availability or enable chat", () => {
+test("full queues do not advertise model availability or enable chat", async () => {
   const worker = member("full-worker", "idle");
   worker.info.waiting = 2;
   render(Network, {
@@ -114,13 +114,13 @@ test("full queues do not advertise model availability or enable chat", () => {
   expect(screen.getByText("Queue full")).toBeTruthy();
   expect(screen.getByText("No capacity right now")).toBeTruthy();
   expect(
-    screen
-      .getByRole("button", { name: `Choose ${MODELS[0].name}` })
-      .hasAttribute("disabled"),
-  ).toBe(true);
+    (
+      await screen.findByRole("button", { name: `Choose ${MODELS[0].name}` })
+    ).getAttribute("aria-disabled"),
+  ).toBe("true");
   expect(
-    screen
-      .getByRole("button", { name: `Chat with ${MODELS[0].name}` })
-      .hasAttribute("disabled"),
-  ).toBe(true);
+    (
+      await screen.findByRole("button", { name: `Chat with ${MODELS[0].name}` })
+    ).getAttribute("aria-disabled"),
+  ).toBe("true");
 });

@@ -13,11 +13,26 @@ export interface ModelSpec {
   /** Transformer layers, for models that can run as a team. */
   layers?: number;
 }
-/** Layer ranges of a two-device team: the host runs 0..split, the invited device split..layers. */
-export function teamLayers(model: ModelSpec): { split: number; layers: number } {
-  const layers = model.layers ?? 0;
-  return { split: Math.floor(layers / 2), layers };
+/**
+ * Layer ranges of a team of `devices`, as [start, end) pairs that differ by
+ * at most one layer. The host runs the first. Matches the network crate's
+ * `split_layers`.
+ */
+export function teamRanges(layers: number, devices: number): Array<[number, number]> {
+  const n = Math.max(1, Math.min(devices, layers));
+  const base = Math.floor(layers / n),
+    extra = layers % n;
+  const ranges: Array<[number, number]> = [];
+  let start = 0;
+  for (let i = 0; i < n; i++) {
+    const end = start + base + (i < extra ? 1 : 0);
+    ranges.push([start, end]);
+    start = end;
+  }
+  return ranges;
 }
+/** Most devices the page offers for one team. */
+export const MAX_TEAM_DEVICES = 4;
 /** "Layers a–b" for a range start..end. */
 export const layerLabel = (start: number, end: number) =>
   `Layers ${start}–${end - 1}`;

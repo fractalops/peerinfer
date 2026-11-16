@@ -93,11 +93,18 @@ export class NetworkTimeline {
 
 /** The current publisher appends this marker only for a split coordinator.
  * It describes the reported configuration, not independent stage health. */
-export function executionMode(member: Member): string {
-  return member.info.adapter.endsWith(" · 2 devices")
-    ? "Two-device team"
-    : "Single device";
+/** Devices in a reported team, from the adapter's " · N devices" suffix; 1 for a single device. */
+export function teamDevices(member: Member): number {
+  const m = / · (\d+) devices$/.exec(member.info.adapter);
+  return m ? Number(m[1]) : 1;
 }
+export function executionMode(member: Member): string {
+  const n = teamDevices(member);
+  return n > 1 ? `Team of ${n} devices` : "Single device";
+}
+/** The reported adapter without the team suffix. */
+export const reportedDevice = (adapter: string) =>
+  adapter.replace(/ · \d+ devices$/, "");
 export function relativeSeen(at: number, now: number): string {
   const seconds = Math.max(0, Math.floor((now - at) / 1000));
   if (seconds < 5) return "Just now";

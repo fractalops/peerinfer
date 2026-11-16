@@ -2,6 +2,11 @@
   import { marked } from "marked";
   import DOMPurify from "dompurify";
   import { Button } from "@ui-sdk/svelte/button";
+  import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+  } from "@ui-sdk/svelte/tooltip";
   import type { Message } from "../chat-state";
   import { shortId } from "../types";
   import Icon from "./Icon.svelte";
@@ -100,11 +105,12 @@
       </div>{/if}
     {#if message.status === "complete" || message.status === "stopped"}
       <div class="reply-actions">
-        {#if message.text}<Button
-            class="icon-button small"
-            aria-label={copied ? "Reply copied" : "Copy reply"}
-            onclick={copy}
-            ><Icon name={copied ? "check" : "copy"} size={16} /></Button
+        {#if message.text}<Tooltip
+            ><TooltipTrigger class="icon-button small" onclick={copy}
+              ><Icon name={copied ? "check" : "copy"} size={16} /></TooltipTrigger
+            ><TooltipContent class="tooltip"
+              >{copied ? "Reply copied" : "Copy reply"}</TooltipContent
+            ></Tooltip
           >{/if}
         {#if message.seconds !== undefined}<span
             >{message.seconds.toFixed(1)}s · {message.tokens} tokens</span

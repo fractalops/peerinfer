@@ -1,5 +1,10 @@
 <script lang="ts">
   import { Button } from "@ui-sdk/svelte/button";
+  import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+  } from "@ui-sdk/svelte/tooltip";
   import { Input } from "@ui-sdk/svelte/input";
   import { Field, FieldLabel } from "@ui-sdk/svelte/field";
   import {
@@ -17,7 +22,7 @@
   import Icon from "./Icon.svelte";
   import WorkerDetails from "./WorkerDetails.svelte";
   import { chatCandidates } from "../chat-client";
-  import { executionMode, relativeSeen } from "../network-state";
+  import { executionMode, relativeSeen, teamDevices } from "../network-state";
   interface Props {
     members: Member[];
     neighbors: number;
@@ -232,7 +237,7 @@
                     onclick={() => (selectedId = member.id)}
                   >
                     <Icon
-                      name={executionMode(member) === "Two-device team"
+                      name={teamDevices(member) > 1
                         ? "network"
                         : "device"}
                       size={18}
@@ -276,14 +281,24 @@
                   >{relativeSeen(member.lastSeenMs, now)}</td
                 >
                 <td
-                  ><Button
-                    class="icon-button small"
-                    aria-label={`Chat with ${name(member.info.model)}`}
-                    disabled={!models.some(
-                      (m) => m.id === member.info.model && m.accepting > 0,
-                    )}
-                    onclick={() => onchat(member.info.model)}
-                    ><Icon name="chat" size={17} /></Button
+                  ><Tooltip
+                    ><TooltipTrigger
+                      class="icon-button small"
+                      aria-disabled={!models.some(
+                        (m) => m.id === member.info.model && m.accepting > 0,
+                      ) || undefined}
+                      onclick={() => {
+                        if (
+                          models.some(
+                            (m) => m.id === member.info.model && m.accepting > 0,
+                          )
+                        )
+                          onchat(member.info.model);
+                      }}
+                      ><Icon name="chat" size={17} /></TooltipTrigger
+                    ><TooltipContent class="tooltip"
+                      >{`Chat with ${name(member.info.model)}`}</TooltipContent
+                    ></Tooltip
                   ></td
                 >
               </tr>
@@ -337,12 +352,16 @@
                       : "No workers"}</span
               >
             </div>
-            <Button
-              class="icon-button small"
-              aria-label={`Choose ${model.name}`}
-              disabled={!model.accepting}
-              onclick={() => onchat(model.id)}
-              ><Icon name="external" size={17} /></Button
+            <Tooltip
+              ><TooltipTrigger
+                class="icon-button small"
+                aria-disabled={!model.accepting || undefined}
+                onclick={() => {
+                  if (model.accepting) onchat(model.id);
+                }}
+                ><Icon name="external" size={17} /></TooltipTrigger
+              ><TooltipContent class="tooltip">{`Choose ${model.name}`}</TooltipContent
+              ></Tooltip
             >
             <small
               >{model.workers} worker{model.workers === 1

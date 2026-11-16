@@ -1,5 +1,6 @@
 //! Browser bindings. The page runs the model. This crate runs the network.
 
+mod team;
 mod transport;
 
 use std::{sync::Arc, time::Duration};

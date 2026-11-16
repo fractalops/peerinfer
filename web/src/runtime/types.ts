@@ -32,11 +32,3 @@ export interface RuntimeOptions {
   progress: (progress: RuntimeProgress) => void;
   unavailable: (reason: string) => void;
 }
-export interface PeerAddress {
-  id: string;
-  addrs: unknown[];
-}
-export interface Chunk {
-  hash: string;
-  bytes: number;
-}

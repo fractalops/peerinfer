@@ -1,10 +1,6 @@
-import { StagePeer } from "../wasm/peerinfer_web.js";
-import type { Chunk, PeerAddress, RuntimeOptions } from "./types";
 
 /** Content-addressed, cross-visit model cache. Identity and invitations do not affect cache keys. */
 export class ModelStore {
-  downloaded = 0;
-  reused = 0;
   constructor(private db: IDBDatabase) {}
   static async open(): Promise<ModelStore> {
     return new Promise((resolve, reject) => {
@@ -38,69 +34,6 @@ export class ModelStore {
           ),
         );
     });
-  }
-  async blob(
-    chunk: Chunk,
-    peer: StagePeer,
-    address: PeerAddress,
-    signal: AbortSignal,
-  ): Promise<Uint8Array> {
-    signal.throwIfAborted();
-    const saved = await this.read(chunk.hash);
-    if (
-      saved?.length === chunk.bytes &&
-      StagePeer.verifyBlob(saved, chunk.hash)
-    ) {
-      this.reused += saved.length;
-      return saved;
-    }
-    let last: unknown;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      signal.throwIfAborted();
-      try {
-        const bytes = await peer.getBlob(address, chunk.hash, chunk.bytes);
-        signal.throwIfAborted();
-        if (
-          bytes.length !== chunk.bytes ||
-          !StagePeer.verifyBlob(bytes, chunk.hash)
-        )
-          throw new Error("Weight verification failed.");
-        await this.write(chunk.hash, bytes);
-        this.downloaded += bytes.length;
-        return bytes;
-      } catch (error) {
-        last = error;
-      }
-    }
-    throw new Error(
-      `Could not receive weights from the other device. Keep both tabs open and retry. ${String(last)}`,
-    );
-  }
-  async prefetch(
-    chunks: Chunk[],
-    peer: StagePeer,
-    address: PeerAddress,
-    options: RuntimeOptions,
-  ) {
-    const unique = [...new Map(chunks.map((c) => [c.hash, c])).values()];
-    const total = unique.reduce((n, c) => n + c.bytes, 0);
-    let loaded = 0,
-      next = 0;
-    await Promise.all(
-      Array.from({ length: 4 }, async () => {
-        while (next < unique.length) {
-          const c = unique[next++];
-          await this.blob(c, peer, address, options.signal);
-          loaded += c.bytes;
-          options.progress({
-            phase: "downloading",
-            message: "Receiving verified weights from the other device",
-            loaded,
-            total,
-          });
-        }
-      }),
-    );
   }
   close() {
     this.db.close();

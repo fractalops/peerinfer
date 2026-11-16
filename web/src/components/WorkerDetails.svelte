@@ -10,11 +10,13 @@
   } from "@ui-sdk/svelte/dialog";
   import type { Member } from "../types";
   import { shortId } from "../types";
-  import { MODELS, layerLabel, teamLayers } from "../config";
+  import { MODELS, layerLabel, teamRanges } from "../config";
   import {
     count,
     executionMode,
     relativeSeen,
+    reportedDevice,
+    teamDevices,
     workerStatus,
     type NetworkHistory,
   } from "../network-state";
@@ -32,9 +34,8 @@
   let { id, member, selfId, history, now, canChat, onclose, onchat }: Props =
     $props();
   const model = $derived(MODELS.find((m) => m.id === member?.info.model));
-  const team = $derived(
-    member ? executionMode(member) === "Two-device team" : false,
-  );
+  const devices = $derived(member ? teamDevices(member) : 1);
+  const team = $derived(devices > 1);
   const events = $derived(
     history.events.filter((event) => event.worker === id).slice(0, 6),
   );
@@ -96,9 +97,7 @@
         <div class="wide">
           <dt>Reported device</dt>
           <dd>
-            {team
-              ? member.info.adapter.slice(0, -" · 2 devices".length)
-              : member.info.adapter || "Not reported"}
+            {reportedDevice(member.info.adapter) || "Not reported"}
           </dd>
         </div>
         <div>
@@ -134,37 +133,26 @@
         <section class="execution-detail" aria-labelledby="execution-title">
           <h3 id="execution-title">Shared inference</h3>
           <p>
-            One coordinator accepts the request. Two stages run the model in
-            sequence.
+            One coordinator accepts the request. {devices} devices run the model's
+            layers in sequence.
           </p>
-          {#if model?.shared}
+          {#if model?.shared && model.layers}
             <ol
               class="execution-chain"
-              aria-label="Reported two-device configuration"
+              aria-label="Reported team configuration"
             >
-              <li>
-                <span class="stage-number">01</span>
-                <div>
-                  <strong>Coordinator</strong><span
-                    >{layerLabel(0, teamLayers(model).split)}</span
-                  ><code
-                    >{shortId(member.id)}</code
-                  >
-                </div>
-              </li>
-              <li>
-                <span class="stage-number">02</span>
-                <div>
-                  <strong>Invited stage</strong><span
-                    >{layerLabel(
-                      teamLayers(model).split,
-                      teamLayers(model).layers,
-                    )}</span
-                  ><small
-                    >Peer ID not advertised</small
-                  >
-                </div>
-              </li>
+              {#each teamRanges(model.layers, devices) as [start, end], i (start)}
+                <li>
+                  <span class="stage-number">{String(i + 1).padStart(2, "0")}</span>
+                  <div>
+                    <strong>{i === 0 ? "Coordinator" : `Device ${i + 1}`}</strong><span
+                      >{layerLabel(start, end)}</span
+                    >{#if i === 0}<code>{shortId(member.id)}</code>{:else}<small
+                        >Peer ID not advertised</small
+                      >{/if}
+                  </div>
+                </li>
+              {/each}
             </ol>
           {/if}
           <p class="detail-note">
