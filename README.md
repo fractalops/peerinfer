@@ -26,17 +26,16 @@ Choose a model and click **Share compute**. The browser downloads the model once
 
 The browser must support WebGPU.
 
-## Split a model across two browsers
+## Split a model across devices
 
-This is a preview. It works with SmolLM2 135M and SmolLM2 360M.
+This is a preview. It works with SmolLM2 135M and SmolLM2 360M, on 2 to 4 devices.
 
-1. On the first device, choose a SmolLM2 model, click **Share compute**, and choose **With another device**.
-2. Open the invitation link on a second device that supports WebGPU.
-3. On the second device, click **Join this team**.
+1. On the first device, choose a SmolLM2 model, click **Share compute**, choose **With other devices**, and choose the number of devices.
+2. On each other device, open the invitation link and click **Join team**. On a computer with the command-line tool, you can run the `peerinfer join` command that the page shows instead.
 
-The first device runs the first half of the model's layers. The second device downloads from the first device the weight files it needs for the second half, and runs them. When both devices are ready, the pair accepts chat requests as one worker.
+Each device runs a range of the model's layers. The other devices receive from the first device only the weight files their layers need. When all devices are ready, the team accepts chat requests as one worker.
 
-If either device stops or disconnects, the pair ends. Start a new pair to continue. Each device keeps the weights it downloaded. Only pair devices you trust.
+If a device stops or disconnects, the team ends. Start a new team to continue. Each device keeps the weights it received. Only invite devices you trust.
 
 ## Run your own pool
 
