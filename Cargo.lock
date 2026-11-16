@@ -2990,6 +2990,7 @@ dependencies = [
 [[package]]
 name = "peerinfer-core"
 version = "0.1.0"
+source = "git+https://github.com/fractalops/peerinfer-core?rev=83fa0f225e73159e0913d1868ed3b6463018790b#83fa0f225e73159e0913d1868ed3b6463018790b"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -3002,6 +3003,7 @@ dependencies = [
 [[package]]
 name = "peerinfer-core-web"
 version = "0.1.0"
+source = "git+https://github.com/fractalops/peerinfer-core?rev=83fa0f225e73159e0913d1868ed3b6463018790b#83fa0f225e73159e0913d1868ed3b6463018790b"
 dependencies = [
  "anyhow",
  "console_error_panic_hook",

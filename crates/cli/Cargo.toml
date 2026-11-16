@@ -14,7 +14,7 @@ anyhow.workspace = true
 clap = { version = "4", features = ["derive", "env"] }
 iroh.workspace = true
 peerinfer-net.workspace = true
-peerinfer-core = { path = "../../../peerinfer-core/crates/core" }
+peerinfer-core = { git = "https://github.com/fractalops/peerinfer-core", rev = "83fa0f225e73159e0913d1868ed3b6463018790b" }
 iroh-blobs = { version = "=0.104.1", default-features = false }
 tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
 serde = { version = "1", features = ["derive"] }

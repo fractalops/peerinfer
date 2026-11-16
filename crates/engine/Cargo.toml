@@ -10,4 +10,4 @@ description = "The inference engine for browser workers, built as one WebAssembl
 crate-type = ["cdylib"]
 
 [dependencies]
-peerinfer-core-web = { path = "../../../peerinfer-core/crates/web" }
+peerinfer-core-web = { git = "https://github.com/fractalops/peerinfer-core", rev = "83fa0f225e73159e0913d1868ed3b6463018790b" }
