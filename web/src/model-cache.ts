@@ -1,5 +1,5 @@
 /** Cache layout used by the pinned WebLLM 0.2.88 runtime. */
-const MODEL_CACHE = "webllm/model";
+export const MODEL_CACHE = "webllm/model";
 
 interface Shard {
   dataPath: string;

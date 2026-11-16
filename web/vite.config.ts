@@ -48,6 +48,25 @@ export default defineConfig({
             res.end("Run scripts/test-model-fixture.sh first.");
           }
         });
+        // MLC weights in fixtures/<model>/, served like Hugging Face's
+        // resolve/main/ paths for ?weights= in development.
+        server.middlewares.use("/mlc-fixture/", (req, res, next) => {
+          const m = /^\/([\w.-]+)\/resolve\/main\/([\w.-]+)$/.exec(
+            (req.url ?? "").split("?")[0],
+          );
+          if (!m) return next();
+          const file = fileURLToPath(
+            new URL(`../fixtures/${m[1]}/${m[2]}`, import.meta.url),
+          );
+          try {
+            res.setHeader("Content-Length", statSync(file).size);
+            res.setHeader("Content-Type", "application/octet-stream");
+            createReadStream(file).pipe(res);
+          } catch {
+            res.statusCode = 404;
+            res.end();
+          }
+        });
       },
     },
   ],

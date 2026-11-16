@@ -1,5 +1,5 @@
 import type { Job, MeshNode } from "./wasm/peerinfer_web.js";
-import type { ModelSpec } from "./config";
+import { testWeights, type ModelSpec } from "./config";
 import type { CompletionRequest, WorkerInfo } from "./types";
 import type { Runtime, RuntimeOptions, RuntimeProgress } from "./runtime/types";
 import { createOnnx } from "./runtime/onnx";
@@ -140,9 +140,17 @@ export class Contributor {
               })
             : model.runtime === "onnx"
               ? await createOnnx(options)
-              : await (
-                  await import("./runtime/webllm")
-                ).createWebLlm(model.id, options);
+              : model.runtime === "core"
+                ? await (
+                    await import("./runtime/core")
+                  ).createCore(
+                    model.id,
+                    new URL(testWeights() ?? model.source!, location.href).href,
+                    options,
+                  )
+                : await (
+                    await import("./runtime/webllm")
+                  ).createWebLlm(model.id, options);
       if (this.version !== version || loading.signal.aborted) {
         await runtime.dispose();
         return;
@@ -289,6 +297,8 @@ export interface GpuCheck {
   name: string;
   onnxProblem: string | null;
   webllmProblem: string | null;
+  /** The core runtime needs only WebGPU's default limits. */
+  coreProblem: string | null;
 }
 export async function checkGpu(): Promise<GpuCheck> {
   const adapter = await navigator.gpu?.requestAdapter();
@@ -298,6 +308,8 @@ export async function checkGpu(): Promise<GpuCheck> {
       onnxProblem:
         "Contributing needs WebGPU. Try a recent Chrome or Edge browser.",
       webllmProblem:
+        "Contributing needs WebGPU. Try a recent Chrome or Edge browser.",
+      coreProblem:
         "Contributing needs WebGPU. Try a recent Chrome or Edge browser.",
     };
   const name =
@@ -323,5 +335,6 @@ export async function checkGpu(): Promise<GpuCheck> {
     webllmProblem: failed
       ? "This browser’s GPU limits are too low for WebLLM. Try Chrome or Edge."
       : null,
+    coreProblem: null,
   };
 }

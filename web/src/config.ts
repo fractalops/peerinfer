@@ -5,7 +5,9 @@ export interface ModelSpec {
   name: string;
   description: string;
   downloadMB: number;
-  runtime: "onnx" | "webllm";
+  runtime: "onnx" | "webllm" | "core";
+  /** MLC q4f16_1 weights for the core runtime. */
+  source?: string;
   shared: boolean;
 }
 export const MODELS: ModelSpec[] = [
@@ -22,7 +24,8 @@ export const MODELS: ModelSpec[] = [
     name: "SmolLM2 · 360M",
     description: "A small chat model. Runs on one browser GPU.",
     downloadMB: 210,
-    runtime: "webllm",
+    runtime: "core",
+    source: "https://huggingface.co/mlc-ai/SmolLM2-360M-Instruct-q4f16_1-MLC/resolve/main/",
     shared: false,
   },
   {
@@ -48,6 +51,12 @@ export function bootstrapIds(): string[] {
     .split(",")
     .map((s: string) => s.trim())
     .filter(Boolean);
+}
+/** Local weights for the core runtime, for example /mlc-fixture/<model>/resolve/main/. Development only. */
+export function testWeights(): string | undefined {
+  return import.meta.env.DEV
+    ? (new URLSearchParams(location.search).get("weights") ?? undefined)
+    : undefined;
 }
 /** Local test overrides are not accepted by the deployed app. */
 export function testRelay(): string | undefined {

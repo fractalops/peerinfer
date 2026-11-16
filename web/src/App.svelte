@@ -108,7 +108,9 @@
       ? "Checking this device’s GPU…"
       : model.runtime === "onnx"
         ? (gpu?.onnxProblem ?? null)
-        : (gpu?.webllmProblem ?? null),
+        : model.runtime === "core"
+          ? (gpu?.coreProblem ?? null)
+          : (gpu?.webllmProblem ?? null),
   );
   const status = $derived(
     connection === "error"
@@ -358,6 +360,8 @@
             onnxProblem:
               "This browser cannot share its GPU. You can still chat using a network worker.",
             webllmProblem:
+              "This browser cannot share its GPU. You can still chat using a network worker.",
+            coreProblem:
               "This browser cannot share its GPU. You can still chat using a network worker.",
           };
       })

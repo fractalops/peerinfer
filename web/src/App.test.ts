@@ -76,6 +76,7 @@ beforeEach(() => {
     name: "Test GPU",
     onnxProblem: null,
     webllmProblem: null,
+    coreProblem: null,
   });
   mocks.complete.mockImplementation(
     async () =>

@@ -16,9 +16,9 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --exclude peerinfer-web --all-targets -- -D warnings
-      - run: cargo clippy -p peerinfer-web --target wasm32-unknown-unknown -- -D warnings
-      - run: cargo test --workspace --exclude peerinfer-web
+      - run: cargo clippy --workspace --exclude peerinfer-web --exclude peerinfer-engine --all-targets -- -D warnings
+      - run: cargo clippy -p peerinfer-web -p peerinfer-engine --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo test --workspace --exclude peerinfer-web --exclude peerinfer-engine
 
   web:
     runs-on: ubuntu-latest

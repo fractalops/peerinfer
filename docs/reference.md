@@ -59,7 +59,7 @@ Set `PEERINFER_LOG` to a tracing filter, for example `PEERINFER_LOG=peerinfer_ne
 
 Choose a model and chat. Routing uses only non-stale workers advertising that exact model; idle workers are preferred, followed by short queues. It tries up to three candidates before any text arrives and never silently retries a partial answer. Stop cancels the response. Only completed turns are included in follow-ups; changing models starts a new conversation.
 
-**Share compute** offers whole-model execution, and a two-browser shared preview for SmolLM2 135M. GPU checks run before downloading. Downloads report progress and caches survive visits. ONNX peer weights are content-verified; WebLLM shards are length-checked. Stop during preparation cancels loading. Pause interrupts active generation and rejects new jobs; resume makes the existing session available again. Stop ends the contribution and releases its GPU worker.
+**Share compute** offers whole-model execution, and a two-browser shared preview for SmolLM2 135M. GPU checks run before downloading. Downloads report progress and caches survive visits. ONNX peer weights are content-verified; MLC weight shards are length-checked. Stop during preparation cancels loading. Pause interrupts active generation and rejects new jobs; resume makes the existing session available again. Stop ends the contribution and releases its GPU worker.
 
 The **Network** dashboard shows availability, active and queued requests, reported completions and token totals, and a searchable worker table. The request chart and activity log record observations from the current tab session. Totals describe workers currently in view; they are not lifetime pool counters. Connection details show the local endpoint and pool. A shared team appears as one logical worker; it becomes ready only after both stages load. Select a worker for live details and its reported execution configuration. The diagram does not report individual remote stage health. Green dots indicate connected or available states; model availability respects worker queue capacity. An invited stage does not advertise a complete model. Worker availability is self-reported.
 
@@ -67,11 +67,14 @@ The **Network** dashboard shows availability, active and queued requests, report
 | --- | --- |
 | `?bootstrap=ID1,ID2` | Overrides the build-time bootstrap list. An empty value creates a standalone local pool. |
 | `?model=ID` | Selects a listed model: `SmolLM2-135M-Instruct-ONNX-Q4` (default), `SmolLM2-360M-Instruct-q4f16_1-MLC`, or `Qwen3-4B-q4f16_1-MLC`. |
+| `?weights=URL` | Development builds only. Loads MLC weights for SmolLM2 360M from `URL` instead of Hugging Face. The development server serves `fixtures/<model>/` at `/mlc-fixture/<model>/resolve/main/`. |
 | `#join=…` | Invitation capability for the second stage. Open it only for a host you trust. The fragment is not sent to the static host. |
 
 Each tab has a fresh endpoint identity. Verified model caches use content hashes and revision keys independently of that identity. No conversation history or prompt data is persisted by the app. Browsers can suspend hidden tabs; keep contributors visible. A disconnected shared team must be restarted; it cannot currently recover KV state or replace a missing stage.
 
-The ONNX preview uses the pinned SmolLM2 tokenizer and chat template, EOS stopping, greedy decoding in Precise mode, and temperature/top-k sampling in Creative mode. It supports 1,024 tokens including the reply and at most 512 generated tokens per request; the chat UI requests up to 256. WebLLM handles the other models through the same runtime interface.
+The ONNX preview uses the pinned SmolLM2 tokenizer and chat template, EOS stopping, greedy decoding in Precise mode, and temperature/top-k sampling in Creative mode. It supports 1,024 tokens including the reply and at most 512 generated tokens per request; the chat UI requests up to 256.
+
+SmolLM2 360M runs on the [peerinfer-core](https://github.com/fractalops/peerinfer-core) engine in a Web Worker. It uses the same tokenizer, chat template, stop tokens and limits. Precise mode decodes greedily; Creative mode samples with temperature over the whole vocabulary. The engine needs WebGPU with its default limits. It shares the downloaded weight cache with WebLLM, which runs Qwen3 4B.
 
 ## Pool membership
 

@@ -1,0 +1,13 @@
+[package]
+name = "peerinfer-engine"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "The inference engine for browser workers, built as one WebAssembly module."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+peerinfer-core-web = { git = "https://github.com/fractalops/peerinfer-core", rev = "f7bf0f463fea313ae2a71352adcc1bfa8c6dcb54" }

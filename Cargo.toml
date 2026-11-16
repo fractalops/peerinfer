@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/net", "crates/cli", "crates/web"]
+members = ["crates/net", "crates/cli", "crates/web", "crates/engine"]
 default-members = ["crates/net", "crates/cli"]
 
 [workspace.package]

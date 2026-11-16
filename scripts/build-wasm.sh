@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds the browser crate and writes JS bindings to web/src/wasm.
+# Builds the browser crates and writes JS bindings to web/src/wasm
+# (network node) and web/src/engine-wasm (inference engine).
 # Usage: scripts/build-wasm.sh [--dev]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -33,3 +34,7 @@ if [[ "$profile" == "release" ]] && command -v wasm-opt >/dev/null; then
   wasm-opt --enable-nontrapping-float-to-int --enable-bulk-memory -Os \
     -o web/src/wasm/peerinfer_web_bg.wasm web/src/wasm/peerinfer_web_bg.wasm
 fi
+
+cargo build -p peerinfer-engine --target wasm32-unknown-unknown ${cargo_flags[@]+"${cargo_flags[@]}"}
+wasm-bindgen "${CARGO_TARGET_DIR:-target}/wasm32-unknown-unknown/$profile/peerinfer_engine.wasm" \
+  --out-dir web/src/engine-wasm --target web --weak-refs
