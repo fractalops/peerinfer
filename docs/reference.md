@@ -53,7 +53,7 @@ The node keeps its secret key in `--key-file`. The default is `~/.config/peerinf
 
 ### Logs
 
-Set `PEERINFER_LOG` to a tracing filter, for example `PEERINFER_LOG=peerinfer_core=debug`. Logs go to standard error.
+Set `PEERINFER_LOG` to a tracing filter, for example `PEERINFER_LOG=peerinfer_net=debug`. Logs go to standard error.
 
 ## Web page
 
@@ -98,7 +98,7 @@ ALPN: `peerinfer/infer/0`. Each completion uses one bidirectional QUIC stream.
 2. The worker writes zero or more `Chunk` frames.
 3. The worker writes one `Done` or `Error` frame and finishes.
 
-A frame is a 4-byte big-endian length and a [postcard](https://docs.rs/postcard) body. The largest frame is 1 MiB. The types are in `crates/core/src/proto.rs`.
+A frame is a 4-byte big-endian length and a [postcard](https://docs.rs/postcard) body. The largest frame is 1 MiB. The types are in `crates/net/src/proto.rs`.
 
 | Error code | Meaning |
 |---|---|

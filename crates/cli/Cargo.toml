@@ -13,6 +13,6 @@ path = "src/main.rs"
 anyhow.workspace = true
 clap = { version = "4", features = ["derive", "env"] }
 iroh.workspace = true
-peerinfer-core.workspace = true
+peerinfer-net.workspace = true
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "time", "signal"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

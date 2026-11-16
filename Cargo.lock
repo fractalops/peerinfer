@@ -2424,13 +2424,13 @@ dependencies = [
  "anyhow",
  "clap",
  "iroh",
- "peerinfer-core",
+ "peerinfer-net",
  "tokio",
  "tracing-subscriber",
 ]
 
 [[package]]
-name = "peerinfer-core"
+name = "peerinfer-net"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -2457,7 +2457,7 @@ dependencies = [
  "iroh-blobs",
  "iroh-gossip",
  "n0-future",
- "peerinfer-core",
+ "peerinfer-net",
  "serde",
  "serde-wasm-bindgen",
  "tokio",

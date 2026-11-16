@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["crates/core", "crates/cli", "crates/web"]
-default-members = ["crates/core", "crates/cli"]
+members = ["crates/net", "crates/cli", "crates/web"]
+default-members = ["crates/net", "crates/cli"]
 
 [workspace.package]
 edition = "2024"
@@ -20,7 +20,7 @@ postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", default-features = false, features = ["sync", "io-util"] }
 tracing = "0.1"
-peerinfer-core = { path = "crates/core" }
+peerinfer-net = { path = "crates/net" }
 
 [profile.release.package.peerinfer-web]
 opt-level = "z"

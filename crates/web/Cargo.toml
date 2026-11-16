@@ -15,7 +15,7 @@ iroh.workspace = true
 bao-tree = { version = "0.17", default-features = false }
 iroh-blobs = { version = "=0.104.1", default-features = false }
 iroh-gossip.workspace = true
-peerinfer-core.workspace = true
+peerinfer-net.workspace = true
 n0-future.workspace = true
 serde.workspace = true
 serde-wasm-bindgen = "0.6"

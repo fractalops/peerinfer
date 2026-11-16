@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use iroh::{endpoint::Connection, protocol::Router};
 use n0_future::StreamExt;
-use peerinfer_core::{
+use peerinfer_net::{
     Endpoint, EndpointId, GOSSIP_ALPN, Gossip, SecretKey, bind_endpoint,
     client::CompletionStream,
     pool::{Pool, now_ms},

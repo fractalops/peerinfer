@@ -6,7 +6,7 @@ mod peers;
 use std::{path::PathBuf, process::ExitCode};
 
 use clap::{Args, Parser, Subcommand};
-use peerinfer_core::EndpointId;
+use peerinfer_net::EndpointId;
 
 #[derive(Debug, Parser)]
 #[command(version, about = "Send prompts to browser tabs that run WebLLM.")]
@@ -32,7 +32,7 @@ pub struct PoolArgs {
     #[arg(long = "bootstrap", env = "PEERINFER_BOOTSTRAP", value_delimiter = ',')]
     pub bootstrap: Vec<EndpointId>,
     /// Name of the pool to join.
-    #[arg(long, default_value = peerinfer_core::presence::POOL_NAME)]
+    #[arg(long, default_value = peerinfer_net::presence::POOL_NAME)]
     pub pool: String,
 }
 

@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use clap::Args;
-use peerinfer_core::{
+use peerinfer_net::{
     Endpoint, EndpointId, SecretKey, bind_endpoint,
     client::{AskError, Completion, ask},
     pool::now_ms,

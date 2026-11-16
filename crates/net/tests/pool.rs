@@ -5,7 +5,7 @@ use std::time::Duration;
 use iroh::{
     Endpoint, SecretKey, address_lookup::MemoryLookup, endpoint::presets, protocol::Router,
 };
-use peerinfer_core::{
+use peerinfer_net::{
     GOSSIP_ALPN, Gossip,
     pool::Pool,
     presence::{RosterEvent, WorkerInfo, WorkerState},
@@ -104,7 +104,7 @@ async fn worker_appears_changes_and_leaves() {
     })
     .await;
     assert_eq!(
-        o.roster().candidates(peerinfer_core::pool::now_ms()),
+        o.roster().candidates(peerinfer_net::pool::now_ms()),
         vec![w.id()]
     );
 

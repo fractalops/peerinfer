@@ -12,7 +12,7 @@ use iroh::{
 use iroh_blobs::get::request::GetBlobItem;
 use iroh_blobs::{BlobsProtocol, Hash, store::mem::MemStore};
 use n0_future::{StreamExt, time::timeout};
-use peerinfer_core::bind_endpoint;
+use peerinfer_net::bind_endpoint;
 use tokio::sync::{Mutex, mpsc};
 use wasm_bindgen::prelude::*;
 

@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use iroh::{Endpoint, SecretKey, endpoint::presets, protocol::Router};
-use peerinfer_core::{
+use peerinfer_net::{
     client::{AskError, CompletionStream, ask},
     proto::{ErrorCode, INFER_ALPN, Request},
     worker::{JobQueue, job_queue},

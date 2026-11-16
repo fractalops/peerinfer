@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Args;
-use peerinfer_core::presence::RosterEvent;
+use peerinfer_net::presence::RosterEvent;
 
 use crate::{PoolArgs, default_key_path, net};
 

@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use iroh::protocol::Router;
-use peerinfer_core::{
+use peerinfer_net::{
     GOSSIP_ALPN, Gossip, SecretKey, bind_endpoint, default_bootstrap,
     pool::{Pool, now_ms},
 };
@@ -39,7 +39,7 @@ impl PoolNode {
     pub async fn join_with(
         args: &PoolArgs,
         key: SecretKey,
-        bootstrap: Vec<peerinfer_core::EndpointId>,
+        bootstrap: Vec<peerinfer_net::EndpointId>,
     ) -> Result<Self> {
         let endpoint = bind_endpoint(key.clone(), vec![GOSSIP_ALPN.to_vec()]).await?;
         let gossip = Gossip::builder().spawn(endpoint.clone());

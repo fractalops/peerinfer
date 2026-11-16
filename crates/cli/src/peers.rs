@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use clap::Args;
-use peerinfer_core::{
+use peerinfer_net::{
     SecretKey,
     pool::now_ms,
     presence::{Member, WorkerState},
