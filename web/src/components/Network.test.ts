@@ -124,3 +124,29 @@ test("full queues do not advertise model availability or enable chat", async () 
     ).getAttribute("aria-disabled"),
   ).toBe("true");
 });
+
+test("connection details stay open across pool updates and open on errors", async () => {
+  const props = {
+    members: [member("idle-worker", "idle")],
+    neighbors: 1,
+    selfId: "local",
+    status: "connected",
+    error: "",
+    history: { events: [], samples: [] },
+    onchat: vi.fn(),
+    onretry: vi.fn(),
+  };
+  const { container, rerender } = render(Network, props);
+  const details = container.querySelector(
+    "details.connection-disclosure",
+  ) as HTMLDetailsElement;
+  expect(details.open).toBe(false);
+  await userEvent.click(within(details).getByText("Connection details"));
+  expect(details.open).toBe(true);
+  await rerender({ ...props, neighbors: 2, status: "connected" });
+  expect(details.open).toBe(true);
+  await userEvent.click(within(details).getByText("Connection details"));
+  expect(details.open).toBe(false);
+  await rerender({ ...props, status: "error", error: "Relay unreachable" });
+  expect(details.open).toBe(true);
+});

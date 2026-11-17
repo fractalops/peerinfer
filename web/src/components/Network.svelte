@@ -17,7 +17,7 @@
   } from "@ui-sdk/svelte/select";
   import type { Member } from "../types";
   import { shortId } from "../types";
-  import { MODELS } from "../config";
+  import { MAX_TEAM_DEVICES, MODELS } from "../config";
   import { count, workerStatus, type NetworkHistory } from "../network-state";
   import Icon from "./Icon.svelte";
   import WorkerDetails from "./WorkerDetails.svelte";
@@ -47,6 +47,12 @@
     filter = $state<string | null>("all");
   const live = $derived(members.filter((m) => !m.stale));
   let selectedId = $state<string | null>(null);
+  // Open the connection details when an error appears. Bind instead of
+  // setting `open` from `error`, so pool updates do not undo a click.
+  let connectionOpen = $state(false);
+  $effect(() => {
+    if (error) connectionOpen = true;
+  });
   const selected = $derived(members.find((m) => m.id === selectedId));
   const ready = $derived(
     live.filter((m) => m.info.state === "idle" && m.info.waiting < 2).length,
@@ -153,7 +159,7 @@
     </div>
     <div>
       <dt>Running requests</dt>
-      <dd>{format(active)}<small>workers in view</small></dd>
+      <dd>{format(active)}<small>on online workers</small></dd>
     </div>
     <div>
       <dt>Queued requests</dt>
@@ -367,7 +373,7 @@
               >{model.workers} worker{model.workers === 1
                 ? ""
                 : "s"}{model.shared
-                ? " · Supports a two-device team"
+                ? ` · Runs on teams of 2–${MAX_TEAM_DEVICES} devices`
                 : " · Single-device model"}</small
             >
           </div>{/each}
@@ -432,7 +438,7 @@
         </p>{/if}
     </section>
   </div>
-  <details class="connection-disclosure" open={!!error}>
+  <details class="connection-disclosure" bind:open={connectionOpen}>
     <summary
       ><span
         ><i class="status-dot" class:online={status === "connected"}

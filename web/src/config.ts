@@ -8,7 +8,7 @@ export interface ModelSpec {
   runtime: "webllm" | "core";
   /** MLC q4f16_1 weights for the core runtime. */
   source?: string;
-  /** Can run as a two-device team. */
+  /** Can run as a team of 2 to MAX_TEAM_DEVICES devices. */
   shared: boolean;
   /** Transformer layers, for models that can run as a team. */
   layers?: number;
